@@ -33,6 +33,8 @@ void Software_Trim();
 
 void port_init();
 
+// in my sake this helps clear everything from the adc and restarts it
+// basically allows me to use other sensors every time
 void initialize_Adc(){
      ADCCTL0 &= ~ADCIFG;
      ADCMCTL0 &= ADCINCH_0;
@@ -40,7 +42,7 @@ void initialize_Adc(){
      ADCCTL0=0x0000;
      ADCCTL1=0x0000;
 }
-
+//configurations for ADC temperatures. Internal one was used
 void ConfigureAdc_temp(){
     ADCCTL0 &= ~ADCSHT;
     ADCCTL0 |= ADCSHT_8 | ADCON;                                  // ADC ON,temperature sample
@@ -51,7 +53,7 @@ void ConfigureAdc_temp(){
     ADCMCTL0 |= ADCINCH_12 | ADCSREF_1;                           // ADC input ch A12 => temp sense
     ADCIE |=ADCIE0;
 }
-
+// Configures Photosensor adc
 void ConfigureAdc_photosensor(){
     ADCCTL0 &= ~ADCSHT;
     ADCCTL0 |=ADCSHT_8;
@@ -65,7 +67,7 @@ void ConfigureAdc_photosensor(){
     ADCMCTL0 |=  ADCINCH_9 | ADCSREF_1 ;
     ADCIE |= ADCIE0;
 }
-
+//configures motion sensors adc
 void ConfigureAdc_motionsensor(){
     ADCCTL0 &= ~ADCSHT;
     ADCCTL0 |=ADCSHT_8;
@@ -93,8 +95,10 @@ void main(void){
 
     P1DIR = BIT6; // P1.6 outputs
 
+     // enables the p1.1 which will be needed for enable 
+     // and disable the lightbulb
     P1DIR |= BIT1;
-    P1OUT  &= ~BIT1; // LEDs off
+    P1OUT  &= ~BIT1;
 
 
     int m=0;
@@ -131,7 +135,7 @@ void main(void){
 
 
             if(m==1){
-
+// this allows the ADC To get temperature
                 initialize_Adc();
                 PMMCTL0_H = PMMPW_H;                                          // Unlock the PMM registers read 2.2.8 & 2.2.9 form the manual
                 PMMCTL2 |= INTREFEN | TSENSOREN | REFVSEL_0;                  // Enable internal 1.5V reference and temperature sensor
@@ -144,7 +148,7 @@ void main(void){
 
                 tempvalue = ADCMEM0;                    // read the converted data into a variable
                 ADCCTL0 &= ~ADCIFG;
-                IntDegC = (tempvalue-CALADC_15V_30C)*(85-30)/(CALADC_15V_85C-CALADC_15V_30C)+30;
+                IntDegC = (tempvalue-CALADC_15V_30C)*(85-30)/(CALADC_15V_85C-CALADC_15V_30C)+30; // conversion to celsius
                 itoa(IntDegC,result,10);
                 acount =0;
 
@@ -159,7 +163,8 @@ void main(void){
 
             if(m==2){
 
-
+// this gets photosensor values
+// this allows us to determine if a room is light or dark
                 initialize_Adc();
                 ConfigureAdc_photosensor();
                 ADCCTL0 |= ADCENC + ADCSC +ADCMSC;        // Converter Enable, Sampling/conversion start
@@ -186,7 +191,8 @@ void main(void){
 
             if(m==3){
 
-
+// motion sensors which reads high or low in this case 0 or 4095.
+// helps us get if there is motion.
                 initialize_Adc();
                 ConfigureAdc_motionsensor();
                 ADCCTL0 |= ADCENC + ADCSC +ADCMSC;        // Converter Enable, Sampling/conversion start
@@ -215,17 +221,19 @@ void main(void){
         }
         m=0;
 
-        if ((motionvalue > 20) && (lightvalue < 3600)){
+         // the bread and butter of the project.
+         
+        if ((motionvalue > 20) && (lightvalue < 3600)){//if there is motion and room isnt as bright then turns on lamp
 
-            P1OUT |= BIT1;
+            P1OUT |= BIT1; // enables 3.3 voltage and turns on lamp
             _delay_cycles(2000000);
         }
-        else if((motionvalue < 20) && (lightvalue >3600)){ // no motion bright
-            P1OUT &= ~BIT1;
+        else if((motionvalue < 20) && (lightvalue >3600)){ // no motion and light value is high
+            P1OUT &= ~BIT1;// turns off 3.3 voltage and turns off lamp
         }
         else
         {
-            P1OUT &= ~BIT1;
+            P1OUT &= ~BIT1;// if neither case satisfied then turns off lamp 
         }
     }
 }
